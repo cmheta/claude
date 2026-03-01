@@ -1,41 +1,31 @@
 /**
  * Zara adapter
- * Zara uses Next.js — price data is in __NEXT_DATA__ JSON blob.
- * Falls back to JSON-LD and meta tags.
+ * Uses Zara's internal REST API to fetch product prices.
+ * Extracts product ID from the URL and queries the API directly.
  */
-import * as cheerio from 'cheerio';
+import { fetch } from 'undici';
 import { RetailerAdapter, PriceResult } from '../types';
-import { fetchHtml } from './fetch';
 
-function parsePennies(val: unknown): number | null {
-  const num = parseFloat(String(val));
-  if (isNaN(num) || num <= 0) return null;
-  return Math.round(num * 100);
+function extractProductId(url: string): string | null {
+  // Zara URLs end with -p{productId}.html e.g. p02615136
+  const match = url.match(/-p(\d+)\.html/i);
+  return match ? match[1] : null;
 }
 
-function findPriceInObject(obj: unknown, depth = 0): number | null {
-  if (depth > 12 || obj === null || typeof obj !== 'object') return null;
-  const record = obj as Record<string, unknown>;
-
-  // Zara price fields
-  for (const key of ['price', 'currentPrice', 'salePrice', 'value', 'amount']) {
-    const val = record[key];
-    if (typeof val === 'number' && val > 0) {
-      return Math.round(val * 100);
-    }
-    if (typeof val === 'string') {
-      const num = parseFloat(val.replace(/[^0-9.]/g, ''));
-      if (!isNaN(num) && num > 0 && num < 10000) return Math.round(num * 100);
-    }
-  }
-
-  for (const value of Object.values(record)) {
-    if (typeof value === 'object') {
-      const found = findPriceInObject(value, depth + 1);
-      if (found !== null) return found;
-    }
-  }
-  return null;
+function extractCountryStore(url: string): { country: string; storeId: number } {
+  // Extract country code from URL e.g. zara.com/uk/en/...
+  const match = url.match(/zara\.com\/([a-z]{2})\//i);
+  const country = match ? match[1].toUpperCase() : 'GB';
+  // Zara store IDs by country (common ones)
+  const storeIds: Record<string, number> = {
+    GB: 10701,
+    US: 11111,
+    ES: 10702,
+    FR: 10706,
+    DE: 10709,
+    IT: 10705,
+  };
+  return { country, storeId: storeIds[country] ?? 10701 };
 }
 
 export const zaraAdapter: RetailerAdapter = {
@@ -44,55 +34,62 @@ export const zaraAdapter: RetailerAdapter = {
   },
 
   async fetchPrice(url: string): Promise<PriceResult> {
-    const html = await fetchHtml(url);
-    const $ = cheerio.load(html);
-
-    const title =
-      $('meta[property="og:title"]').attr('content') ??
-      $('title').text().trim().slice(0, 120) ??
-      undefined;
-
-    // Strategy 1: __NEXT_DATA__ JSON blob
-    const nextDataRaw = $('#__NEXT_DATA__').html();
-    if (nextDataRaw) {
-      try {
-        const nextData = JSON.parse(nextDataRaw) as Record<string, unknown>;
-        const price = findPriceInObject(nextData);
-        if (price !== null) {
-          return { pricePennies: price, currency: 'GBP', title };
-        }
-      } catch {
-        // fall through
-      }
+    const productId = extractProductId(url);
+    if (!productId) {
+      throw new Error('Zara: could not extract product ID from URL');
     }
 
-    // Strategy 2: JSON-LD
-    const scripts = $('script[type="application/ld+json"]').toArray();
-    for (const el of scripts) {
-      try {
-        const data = JSON.parse($(el).html() ?? '') as Record<string, unknown>;
-        if (data['@type'] === 'Product') {
-          const offers = data['offers'] as Record<string, unknown> | undefined;
-          const price = offers?.['price'];
-          const pennies = parsePennies(price);
-          if (pennies !== null) {
-            return { pricePennies: pennies, currency: 'GBP', title };
-          }
-        }
-      } catch {
-        // skip
-      }
+    const { country, storeId } = extractCountryStore(url);
+
+    const apiUrl = `https://www.zara.com/itxrest/2/catalog/store/${storeId}/product/${productId}/detail?languageId=-1&appId=com.inditex.zara`;
+
+    const response = await fetch(apiUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        Accept: 'application/json',
+        'Accept-Language': 'en-GB,en;q=0.9',
+        Referer: url,
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`Zara API: HTTP ${response.status}`);
     }
 
-    // Strategy 3: meta tags
-    const metaPrice = $('meta[property="product:price:amount"]').attr('content');
-    if (metaPrice) {
-      const pennies = parsePennies(metaPrice);
-      if (pennies !== null) {
-        return { pricePennies: pennies, currency: 'GBP', title };
-      }
+    const data = await response.json() as Record<string, unknown>;
+
+    // Extract price from API response
+    const price = findPrice(data);
+    if (price === null) {
+      throw new Error('Zara: could not extract price from API response');
     }
 
-    throw new Error('Zara: could not extract price');
+    // Extract title
+    const name = (data['name'] as string | undefined) ?? undefined;
+
+    return { pricePennies: price, currency: country === 'US' ? 'USD' : 'GBP', title: name };
   },
 };
+
+function findPrice(obj: unknown, depth = 0): number | null {
+  if (depth > 10 || obj === null || typeof obj !== 'object') return null;
+  const record = obj as Record<string, unknown>;
+
+  // Zara API price fields
+  for (const key of ['price', 'currentPrice', 'salePrice', 'value', 'oldPrice']) {
+    const val = record[key];
+    if (typeof val === 'number' && val > 0) {
+      // Zara API returns prices in cents already for some regions, or as full price
+      // If value > 10000 it's likely in minor units (pennies), otherwise multiply
+      return val > 10000 ? val : Math.round(val * 100);
+    }
+  }
+
+  for (const value of Object.values(record)) {
+    if (typeof value === 'object') {
+      const found = findPrice(value, depth + 1);
+      if (found !== null) return found;
+    }
+  }
+  return null;
+}
