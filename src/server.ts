@@ -4,7 +4,7 @@
 import express from 'express';
 import { config } from './config';
 import { whatsappRouter } from './routes/whatsapp';
-import { startScheduler } from './services/scheduler';
+import { startScheduler, runChecks } from './services/scheduler';
 import { pool } from './db/client';
 
 const app = express();
@@ -16,6 +16,12 @@ app.use(express.json());
 // Health check
 app.get('/health', (_req, res) => {
   res.json({ status: 'ok', ts: new Date().toISOString() });
+});
+
+// Manual trigger for price checks (dev/testing)
+app.post('/check', (_req, res) => {
+  res.json({ status: 'triggered' });
+  runChecks().catch((err) => console.error('[check] Error:', err));
 });
 
 // Twilio webhook route
