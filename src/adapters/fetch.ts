@@ -17,7 +17,7 @@ function randomUserAgent(): string {
 function scraperApiUrl(url: string): string {
   const key = process.env['SCRAPER_API_KEY'];
   if (!key) return url;
-  return `http://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(url)}&render=false`;
+  return `http://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(url)}&render=true`;
 }
 
 export async function fetchHtml(url: string, timeoutMs = 30_000): Promise<string> {
