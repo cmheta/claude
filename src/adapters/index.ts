@@ -8,6 +8,7 @@ import { cosAdapter } from './cos';
 import { arketAdapter } from './arket';
 import { mangoAdapter } from './mango';
 import { zalandoAdapter } from './zalando';
+import { zaraAdapter } from './zara';
 import { genericAdapter } from './generic';
 
 // Order matters: more specific adapters first, generic last
@@ -17,6 +18,7 @@ const adapters: RetailerAdapter[] = [
   arketAdapter,
   mangoAdapter,
   zalandoAdapter,
+  zaraAdapter,
   genericAdapter,
 ];
 
