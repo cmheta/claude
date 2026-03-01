@@ -5,6 +5,7 @@ import express from 'express';
 import { config } from './config';
 import { whatsappRouter } from './routes/whatsapp';
 import { startScheduler, runChecks } from './services/scheduler';
+import { sendWhatsApp, msgAlert } from './services/whatsapp';
 import { pool } from './db/client';
 
 const app = express();
@@ -22,6 +23,15 @@ app.get('/health', (_req, res) => {
 app.post('/check', (_req, res) => {
   res.json({ status: 'triggered' });
   runChecks().catch((err) => console.error('[check] Error:', err));
+});
+
+// Test alert — sends a WhatsApp notification directly (dev/testing)
+app.post('/test-alert', async (req, res) => {
+  const phone = req.body?.phone as string;
+  if (!phone) { res.status(400).json({ error: 'phone required' }); return; }
+  const msg = msgAlert({ price: '25.00', target: '30.00', url: 'https://example.com', title: 'Test Product' });
+  await sendWhatsApp(phone, msg);
+  res.json({ status: 'sent' });
 });
 
 // Twilio webhook route
