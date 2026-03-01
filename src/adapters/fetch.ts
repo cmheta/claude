@@ -1,7 +1,6 @@
 /**
  * Shared HTTP fetch helper for adapters.
- * Uses undici for proper Node.js HTTP support.
- * Rotates a realistic browser User-Agent and sets common headers.
+ * Uses ScraperAPI if SCRAPER_API_KEY is set, otherwise direct fetch.
  */
 import { fetch } from 'undici';
 
@@ -15,14 +14,23 @@ function randomUserAgent(): string {
   return USER_AGENTS[Math.floor(Math.random() * USER_AGENTS.length)];
 }
 
-export async function fetchHtml(url: string, timeoutMs = 15_000): Promise<string> {
+function scraperApiUrl(url: string): string {
+  const key = process.env['SCRAPER_API_KEY'];
+  if (!key) return url;
+  return `http://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(url)}&render=false`;
+}
+
+export async function fetchHtml(url: string, timeoutMs = 30_000): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const targetUrl = scraperApiUrl(url);
+  const usingProxy = targetUrl !== url;
+
   try {
-    const response = await fetch(url, {
+    const response = await fetch(targetUrl, {
       signal: controller.signal,
-      headers: {
+      headers: usingProxy ? {} : {
         'User-Agent': randomUserAgent(),
         Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         'Accept-Language': 'en-GB,en;q=0.9',
@@ -35,11 +43,6 @@ export async function fetchHtml(url: string, timeoutMs = 15_000): Promise<string
 
     if (!response.ok) {
       throw new Error(`HTTP ${response.status} ${response.statusText} for ${url}`);
-    }
-
-    const contentType = response.headers.get('content-type') ?? '';
-    if (!contentType.includes('html')) {
-      throw new Error(`Unexpected content-type: ${contentType}`);
     }
 
     return await response.text();
