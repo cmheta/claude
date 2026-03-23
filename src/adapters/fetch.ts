@@ -20,7 +20,7 @@ function scraperApiUrl(url: string): string {
   return `http://api.scraperapi.com?api_key=${key}&url=${encodeURIComponent(url)}&render=true`;
 }
 
-export async function fetchHtml(url: string, timeoutMs = 30_000): Promise<string> {
+export async function fetchHtml(url: string, timeoutMs = 60_000): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
