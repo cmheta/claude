@@ -23,6 +23,8 @@ const DEFAULT_FORM: Partial<FormData> = {
   monthly_contribution_gbp: 500,
   inv_mastercard_shares: 0,
   inv_meli_shares: 0,
+  inv_mastercard_gbp: 0,
+  inv_meli_gbp: 0,
   inv_vusa_vanguard_gbp: 0,
   inv_vusa_isa_gbp: 0,
   inv_bonds_usd: 0,
@@ -62,6 +64,8 @@ export default function NewSnapshotPage() {
           ...prev,
           inv_mastercard_shares: last.inv_mastercard_shares,
           inv_meli_shares: last.inv_meli_shares,
+          inv_mastercard_gbp: last.inv_mastercard_gbp ?? 0,
+          inv_meli_gbp: last.inv_meli_gbp ?? 0,
           inv_vusa_vanguard_gbp: last.inv_vusa_vanguard_gbp,
           inv_vusa_isa_gbp: last.inv_vusa_isa_gbp,
           inv_bonds_usd: last.inv_bonds_usd,
@@ -161,14 +165,8 @@ export default function NewSnapshotPage() {
       <Card>
         <CardHeader><CardTitle className="text-sm">Inversiones</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <div>
-            <Field label={`Mastercard (acciones) — precio: ${formatGBP(prices.ma)}`} value={form.inv_mastercard_shares} onChange={(v) => set("inv_mastercard_shares", v)} />
-            <p className="text-xs text-slate-400 mt-1">Valor: {formatGBP(n(form.inv_mastercard_shares) * prices.ma)}</p>
-          </div>
-          <div>
-            <Field label={`MELI (acciones) — precio: ${formatGBP(prices.meli)}`} value={form.inv_meli_shares} onChange={(v) => set("inv_meli_shares", v)} />
-            <p className="text-xs text-slate-400 mt-1">Valor: {formatGBP(n(form.inv_meli_shares) * prices.meli)}</p>
-          </div>
+          <Field label="Mastercard (£)" value={form.inv_mastercard_gbp} onChange={(v) => set("inv_mastercard_gbp", v)} />
+          <Field label="MercadoLibre (£)" value={form.inv_meli_gbp} onChange={(v) => set("inv_meli_gbp", v)} />
           <Field label="VUSA Vanguard (£)" value={form.inv_vusa_vanguard_gbp} onChange={(v) => set("inv_vusa_vanguard_gbp", v)} />
           <Field label="VUSA ISA (£)" value={form.inv_vusa_isa_gbp} onChange={(v) => set("inv_vusa_isa_gbp", v)} />
           <Field label="Bonos USD ($)" value={form.inv_bonds_usd} onChange={(v) => set("inv_bonds_usd", v)} />

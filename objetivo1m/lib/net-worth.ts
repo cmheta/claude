@@ -7,8 +7,13 @@ export function calcNetWorth(
 ): NetWorthBreakdown {
   const { usdToGbp, eurToGbp } = fx
 
-  const maGbp = snap.inv_mastercard_shares * prices.ma * usdToGbp
-  const meliGbp = snap.inv_meli_shares * prices.meli * usdToGbp
+  // Use direct £ value if entered, otherwise fall back to shares × price
+  const maGbp = snap.inv_mastercard_gbp > 0
+    ? snap.inv_mastercard_gbp
+    : snap.inv_mastercard_shares * prices.ma * usdToGbp
+  const meliGbp = snap.inv_meli_gbp > 0
+    ? snap.inv_meli_gbp
+    : snap.inv_meli_shares * prices.meli * usdToGbp
   const bondsGbp = snap.inv_bonds_usd * usdToGbp
 
   const investments_gbp =

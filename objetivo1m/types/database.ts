@@ -6,6 +6,8 @@ export type Snapshot = {
   month: number
   inv_mastercard_shares: number
   inv_meli_shares: number
+  inv_mastercard_gbp: number
+  inv_meli_gbp: number
   inv_vusa_vanguard_gbp: number
   inv_vusa_isa_gbp: number
   inv_bonds_usd: number
