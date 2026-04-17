@@ -14,7 +14,7 @@ import {
 import type { Snapshot } from "@/types/database"
 
 const GOAL = 1_000_000
-const ANNUAL_GOAL_2026 = 70_000
+const ANNUAL_GOAL_2026_USD = 70_000 // original goal in USD from spreadsheet
 
 function buildProjectionData(
   startValue: number,
@@ -50,6 +50,7 @@ export default function ProjectionPage() {
   const [current, setCurrent] = useState<Snapshot | null>(null)
   const [nwGbp, setNwGbp] = useState(436_022)
   const [monthly, setMonthly] = useState(500)
+  const [usdToGbp, setUsdToGbp] = useState(0.79)
   const [loading, setLoading] = useState(true)
   const currentYear = new Date().getFullYear()
 
@@ -59,11 +60,13 @@ export default function ProjectionPage() {
         fetch("/api/prices").then((r) => r.json()),
         supabase.from("snapshots").select("*").order("snapshot_date", { ascending: false }).limit(1),
       ])
+      const fx = pricesRes.fx ?? { usdToGbp: 0.79, eurToGbp: 0.86 }
+      setUsdToGbp(fx.usdToGbp)
       if (snaps?.[0]) {
         const snap = snaps[0] as Snapshot
         setCurrent(snap)
         setMonthly(snap.monthly_contribution_gbp || 500)
-        const nw = calcNetWorth(snap, pricesRes.prices ?? { ma: 435, meli: 1580 }, pricesRes.fx ?? { usdToGbp: 0.79, eurToGbp: 0.86 })
+        const nw = calcNetWorth(snap, pricesRes.prices ?? { ma: 435, meli: 1580 }, fx)
         setNwGbp(nw.total_gbp)
       }
       setLoading(false)
@@ -86,7 +89,8 @@ export default function ProjectionPage() {
   const savedThisYear = current
     ? (current.left_to_save_gbp || 0) * (12 - monthsLeft)
     : 0
-  const onTrack = eoyProjection >= (nwGbp - savedThisYear) + ANNUAL_GOAL_2026
+  const annualGoalGbp = ANNUAL_GOAL_2026_USD * usdToGbp
+  const onTrack = eoyProjection >= (nwGbp - savedThisYear) + annualGoalGbp
 
   if (loading) return <p className="text-slate-400 text-sm">Cargando...</p>
 
@@ -110,8 +114,8 @@ export default function ProjectionPage() {
         </Card>
         <Card>
           <CardContent className="pt-5">
-            <p className="text-xs text-slate-500">Goal {currentYear}</p>
-            <p className="text-xl font-bold">{formatGBP(ANNUAL_GOAL_2026)}</p>
+            <p className="text-xs text-slate-500">Goal {currentYear} ($70k USD → £)</p>
+            <p className="text-xl font-bold">{formatGBP(annualGoalGbp)}</p>
             <Badge variant={onTrack ? "success" : "warning"} className="mt-1">
               {onTrack ? "On track" : "Behind"}
             </Badge>
