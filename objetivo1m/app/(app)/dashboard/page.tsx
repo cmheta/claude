@@ -2,9 +2,8 @@ import { createClient } from "@/lib/supabase/server"
 import { calcNetWorth, projectToGoal } from "@/lib/net-worth"
 import { formatGBP, formatPct } from "@/lib/utils"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
-import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { BreakdownCard } from "@/components/breakdown-card"
 import Link from "next/link"
 import { TrendingUp, TrendingDown, ArrowRight, Brain } from "lucide-react"
 import type { Snapshot } from "@/types/database"
@@ -122,10 +121,48 @@ export default async function DashboardPage() {
 
       {/* Breakdown cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <BreakdownCard label="Inversiones" value={nw.investments_gbp} desc="MA · MELI · VUSA · Bonds · LITG" />
-        <BreakdownCard label="Pensión" value={nw.pension_gbp} desc="L&G · Vanguard pension" />
-        <BreakdownCard label="Ahorros" value={nw.savings_gbp} desc="Marcus · Revolut" />
-        <BreakdownCard label="Bonus / LTIPs" value={nw.bonus_gbp} desc="Efectivo y acciones" />
+        <BreakdownCard
+          label="Inversiones"
+          value={nw.investments_gbp}
+          desc="MA · MELI · VUSA · Bonds · LITG — click para ver"
+          lines={[
+            { label: "Mastercard", value: current.inv_mastercard_gbp > 0 ? current.inv_mastercard_gbp : current.inv_mastercard_shares * prices.ma },
+            { label: "MercadoLibre", value: current.inv_meli_gbp > 0 ? current.inv_meli_gbp : current.inv_meli_shares * prices.meli },
+            { label: "VUSA Vanguard", value: current.inv_vusa_vanguard_gbp },
+            { label: "VUSA ISA", value: current.inv_vusa_isa_gbp },
+            { label: "Bonos (USD→£)", value: current.inv_bonds_usd * fx.usdToGbp },
+            { label: "LITG", value: current.inv_litg_gbp },
+          ]}
+        />
+        <BreakdownCard
+          label="Pensión"
+          value={nw.pension_gbp}
+          desc="L&G · Vanguard SIPP — click para ver"
+          lines={[
+            { label: "L&G", value: current.pension_lg_gbp },
+            { label: "Vanguard SIPP", value: current.pension_vanguard_gbp },
+          ]}
+        />
+        <BreakdownCard
+          label="Ahorros"
+          value={nw.savings_gbp}
+          desc="Marcus · Revolut — click para ver"
+          lines={[
+            { label: "Marcus", value: current.savings_marcus_gbp },
+            { label: "Revolut £", value: current.savings_revolut_gbp },
+            { label: "Revolut $ (→£)", value: current.savings_revolut_usd * fx.usdToGbp },
+            { label: "Revolut € (→£)", value: current.savings_revolut_eur * fx.eurToGbp },
+          ]}
+        />
+        <BreakdownCard
+          label="Bonus / LTIPs"
+          value={nw.bonus_gbp}
+          desc="Cash solamente (no SIPP) — click para ver"
+          lines={[
+            { label: "Bonus cash", value: current.bonus_gbp },
+            { label: "LTIPs", value: current.ltips_gbp },
+          ]}
+        />
       </div>
 
       {/* Allocation + Cashflow */}
@@ -198,17 +235,6 @@ export default async function DashboardPage() {
   )
 }
 
-function BreakdownCard({ label, value, desc }: { label: string; value: number; desc: string }) {
-  return (
-    <Card>
-      <CardContent className="pt-5">
-        <p className="text-xs text-slate-500 mb-1">{label}</p>
-        <p className="text-xl font-bold text-slate-900">{formatGBP(value)}</p>
-        <p className="text-xs text-slate-400 mt-1">{desc}</p>
-      </CardContent>
-    </Card>
-  )
-}
 
 function AllocationBar({ label, pct, color }: { label: string; pct: number; color: string }) {
   return (

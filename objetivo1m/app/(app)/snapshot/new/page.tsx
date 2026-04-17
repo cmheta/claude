@@ -198,7 +198,7 @@ export default function NewSnapshotPage() {
       <Card>
         <CardHeader><CardTitle className="text-sm">Otros</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
-          <Field label="Bonus recibido este mes (£)" value={form.bonus_gbp} onChange={(v) => set("bonus_gbp", v)} />
+          <Field label="Bonus cash este mes (£) — solo si NO fue al SIPP" value={form.bonus_gbp} onChange={(v) => set("bonus_gbp", v)} />
           <Field label="LTIPs (£)" value={form.ltips_gbp} onChange={(v) => set("ltips_gbp", v)} />
           <div className="col-span-2 space-y-1.5">
             <Label>Notas</Label>
