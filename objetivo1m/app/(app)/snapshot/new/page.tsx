@@ -21,6 +21,7 @@ const DEFAULT_FORM: Partial<FormData> = {
   total_pots_usd: 0,
   left_to_save_gbp: 0,
   monthly_contribution_gbp: 500,
+  savings_lloyds_gbp: 0,
   inv_mastercard_shares: 0,
   inv_meli_shares: 0,
   inv_mastercard_gbp: 0,
@@ -72,6 +73,7 @@ export default function NewSnapshotPage() {
           inv_litg_gbp: last.inv_litg_gbp,
           pension_lg_gbp: last.pension_lg_gbp,
           pension_vanguard_gbp: last.pension_vanguard_gbp,
+          savings_lloyds_gbp: last.savings_lloyds_gbp ?? 0,
           savings_marcus_gbp: last.savings_marcus_gbp,
           savings_revolut_gbp: last.savings_revolut_gbp,
           savings_revolut_usd: last.savings_revolut_usd,
@@ -170,7 +172,6 @@ export default function NewSnapshotPage() {
           <Field label="VUSA Vanguard (£)" value={form.inv_vusa_vanguard_gbp} onChange={(v) => set("inv_vusa_vanguard_gbp", v)} />
           <Field label="VUSA ISA (£)" value={form.inv_vusa_isa_gbp} onChange={(v) => set("inv_vusa_isa_gbp", v)} />
           <Field label="Bonos USD ($)" value={form.inv_bonds_usd} onChange={(v) => set("inv_bonds_usd", v)} />
-          <Field label="LITG (£)" value={form.inv_litg_gbp} onChange={(v) => set("inv_litg_gbp", v)} />
         </CardContent>
       </Card>
 
@@ -187,6 +188,7 @@ export default function NewSnapshotPage() {
       <Card>
         <CardHeader><CardTitle className="text-sm">Ahorros</CardTitle></CardHeader>
         <CardContent className="grid grid-cols-2 gap-4">
+          <Field label="Lloyds (£) — cuenta corriente" value={form.savings_lloyds_gbp} onChange={(v) => set("savings_lloyds_gbp", v)} />
           <Field label="Marcus (£)" value={form.savings_marcus_gbp} onChange={(v) => set("savings_marcus_gbp", v)} />
           <Field label="Revolut (£)" value={form.savings_revolut_gbp} onChange={(v) => set("savings_revolut_gbp", v)} />
           <Field label="Revolut ($)" value={form.savings_revolut_usd} onChange={(v) => set("savings_revolut_usd", v)} />

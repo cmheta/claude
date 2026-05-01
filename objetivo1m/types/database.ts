@@ -14,6 +14,7 @@ export type Snapshot = {
   inv_litg_gbp: number
   pension_lg_gbp: number
   pension_vanguard_gbp: number
+  savings_lloyds_gbp: number
   savings_marcus_gbp: number
   savings_revolut_gbp: number
   savings_revolut_usd: number

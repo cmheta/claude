@@ -27,6 +27,7 @@ export function calcNetWorth(
   const pension_gbp = snap.pension_lg_gbp + snap.pension_vanguard_gbp
 
   const savings_gbp =
+    (snap.savings_lloyds_gbp ?? 0) +
     snap.savings_marcus_gbp +
     snap.savings_revolut_gbp +
     snap.savings_revolut_usd * usdToGbp +

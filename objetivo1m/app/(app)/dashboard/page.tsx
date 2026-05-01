@@ -131,7 +131,6 @@ export default async function DashboardPage() {
             { label: "VUSA Vanguard", value: current.inv_vusa_vanguard_gbp },
             { label: "VUSA ISA", value: current.inv_vusa_isa_gbp },
             { label: "Bonos (USD→£)", value: current.inv_bonds_usd * fx.usdToGbp },
-            { label: "LITG", value: current.inv_litg_gbp },
           ]}
         />
         <BreakdownCard
@@ -146,8 +145,9 @@ export default async function DashboardPage() {
         <BreakdownCard
           label="Ahorros"
           value={nw.savings_gbp}
-          desc="Marcus · Revolut — click para ver"
+          desc="Lloyds · Marcus · Revolut — click para ver"
           lines={[
+            { label: "Lloyds", value: current.savings_lloyds_gbp ?? 0 },
             { label: "Marcus", value: current.savings_marcus_gbp },
             { label: "Revolut £", value: current.savings_revolut_gbp },
             { label: "Revolut $ (→£)", value: current.savings_revolut_usd * fx.usdToGbp },
