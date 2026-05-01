@@ -44,7 +44,9 @@ export function BreakdownCard({
             {lines.filter((l) => l.value !== 0).map((l) => (
               <div key={l.label} className="flex justify-between text-xs">
                 <span className="text-slate-500">{l.label}</span>
-                <span className="font-medium text-slate-700">{formatGBP(l.value)}</span>
+                <span className={`font-medium ${l.value < 0 ? "text-red-500" : "text-slate-700"}`}>
+                  {l.value < 0 ? `− ${formatGBP(Math.abs(l.value))}` : formatGBP(l.value)}
+                </span>
               </div>
             ))}
           </div>

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { BreakdownCard } from "@/components/breakdown-card"
 import Link from "next/link"
 import { TrendingUp, TrendingDown, ArrowRight, Brain } from "lucide-react"
-import type { Snapshot } from "@/types/database"
+import type { Snapshot, Bucket } from "@/types/database"
 
 const GOAL = 1_000_000
 
@@ -23,17 +23,10 @@ async function getPrices() {
 export default async function DashboardPage() {
   const supabase = await createClient()
 
-  const [{ data: snapshots }, { data: lastAnalysis }] = await Promise.all([
-    supabase
-      .from("snapshots")
-      .select("*")
-      .order("snapshot_date", { ascending: false })
-      .limit(2),
-    supabase
-      .from("ai_analyses")
-      .select("analysis_text, created_at")
-      .order("created_at", { ascending: false })
-      .limit(1),
+  const [{ data: snapshots }, { data: lastAnalysis }, { data: buckets }] = await Promise.all([
+    supabase.from("snapshots").select("*").order("snapshot_date", { ascending: false }).limit(2),
+    supabase.from("ai_analyses").select("analysis_text, created_at").order("created_at", { ascending: false }).limit(1),
+    supabase.from("buckets").select("*").eq("year", new Date().getFullYear()),
   ])
 
   const { fx, prices } = await getPrices()
@@ -45,9 +38,7 @@ export default async function DashboardPage() {
     return (
       <div className="flex flex-col items-center justify-center h-64 gap-4">
         <p className="text-slate-500 text-sm">No hay snapshots todavía.</p>
-        <Button asChild>
-          <Link href="/snapshot/new">Crear primer snapshot</Link>
-        </Button>
+        <Button asChild><Link href="/snapshot/new">Crear primer snapshot</Link></Button>
       </div>
     )
   }
@@ -62,11 +53,20 @@ export default async function DashboardPage() {
   const { years } = projectToGoal(nw.total_gbp, current.monthly_contribution_gbp || 500, 0.10)
   const estimatedYear = new Date().getFullYear() + Math.ceil(years)
 
-  const totalInvested = nw.investments_gbp + nw.pension_gbp
-  const stocksPct = totalInvested > 0 ? Math.round((nw.investments_gbp / nw.total_gbp) * 100) : 0
+  const stocksPct = Math.round((nw.investments_gbp / nw.total_gbp) * 100)
   const pensionPct = Math.round((nw.pension_gbp / nw.total_gbp) * 100)
   const cashPct = Math.round((nw.savings_gbp / nw.total_gbp) * 100)
   const bondsPct = Math.round(((current.inv_bonds_usd * fx.usdToGbp) / nw.total_gbp) * 100)
+
+  // Pots reserved in Lloyds (accumulated so far this year, converted to GBP)
+  const currentMonth = new Date().getMonth() + 1
+  const potsReservedUsd = (buckets as Bucket[] ?? []).reduce(
+    (sum, b) => sum + b.monthly_contribution_usd * currentMonth,
+    0
+  )
+  const potsReservedGbp = potsReservedUsd * fx.usdToGbp
+  const lloydsGbp = current.savings_lloyds_gbp ?? 0
+  const lloydsLibreGbp = lloydsGbp - potsReservedGbp
 
   return (
     <div className="space-y-8 max-w-6xl">
@@ -75,10 +75,7 @@ export default async function DashboardPage() {
           <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             Snapshot:{" "}
-            {new Date(current.snapshot_date).toLocaleDateString("es-ES", {
-              month: "long",
-              year: "numeric",
-            })}
+            {new Date(current.snapshot_date).toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
           </p>
         </div>
         <Button asChild variant="outline" size="sm">
@@ -93,27 +90,19 @@ export default async function DashboardPage() {
           <div className="flex items-end gap-4 flex-wrap">
             <span className="text-5xl font-bold tracking-tight">{formatGBP(nw.total_gbp)}</span>
             {prevNw && (
-              <span
-                className={`flex items-center gap-1 text-sm font-medium mb-1 ${changeGbp >= 0 ? "text-emerald-400" : "text-red-400"}`}
-              >
+              <span className={`flex items-center gap-1 text-sm font-medium mb-1 ${changeGbp >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                 {changeGbp >= 0 ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                {changeGbp >= 0 ? "+" : ""}
-                {formatGBP(changeGbp)} ({formatPct(changePct)})
+                {changeGbp >= 0 ? "+" : ""}{formatGBP(changeGbp)} ({formatPct(changePct)})
               </span>
             )}
           </div>
           <div className="mt-4 space-y-2">
             <div className="flex justify-between text-sm">
-              <span className="text-slate-400">
-                {progressPct.toFixed(1)}% de {formatGBP(GOAL)}
-              </span>
+              <span className="text-slate-400">{progressPct.toFixed(1)}% de {formatGBP(GOAL)}</span>
               <span className="text-slate-400">Año estimado: {estimatedYear}</span>
             </div>
             <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-700">
-              <div
-                className="h-full bg-emerald-400 transition-all"
-                style={{ width: `${progressPct}%` }}
-              />
+              <div className="h-full bg-emerald-400 transition-all" style={{ width: `${progressPct}%` }} />
             </div>
           </div>
         </CardContent>
@@ -124,7 +113,7 @@ export default async function DashboardPage() {
         <BreakdownCard
           label="Inversiones"
           value={nw.investments_gbp}
-          desc="MA · MELI · VUSA · Bonds · LITG — click para ver"
+          desc="MA · MELI · VUSA · Bonds — click para ver"
           lines={[
             { label: "Mastercard", value: current.inv_mastercard_gbp > 0 ? current.inv_mastercard_gbp : current.inv_mastercard_shares * prices.ma },
             { label: "MercadoLibre", value: current.inv_meli_gbp > 0 ? current.inv_meli_gbp : current.inv_meli_shares * prices.meli },
@@ -147,7 +136,9 @@ export default async function DashboardPage() {
           value={nw.savings_gbp}
           desc="Lloyds · Marcus · Revolut — click para ver"
           lines={[
-            { label: "Lloyds", value: current.savings_lloyds_gbp ?? 0 },
+            { label: "Lloyds (total)", value: lloydsGbp },
+            { label: "  └ pots reservados", value: -potsReservedGbp },
+            { label: "  └ Lloyds libre", value: lloydsLibreGbp },
             { label: "Marcus", value: current.savings_marcus_gbp },
             { label: "Revolut £", value: current.savings_revolut_gbp },
             { label: "Revolut $ (→£)", value: current.savings_revolut_usd * fx.usdToGbp },
@@ -234,7 +225,6 @@ export default async function DashboardPage() {
     </div>
   )
 }
-
 
 function AllocationBar({ label, pct, color }: { label: string; pct: number; color: string }) {
   return (
