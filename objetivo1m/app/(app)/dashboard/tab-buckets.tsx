@@ -31,7 +31,7 @@ type BucketWithBalance = Bucket & {
   balance: number
 }
 
-export function TabBuckets() {
+export function TabBuckets({ demoData }: { demoData?: { buckets: Bucket[]; transactions: BucketTransaction[] } }) {
   const supabase = createClient()
   const currentYear = new Date().getFullYear()
   const currentMonth = new Date().getMonth() + 1
@@ -47,6 +47,21 @@ export function TabBuckets() {
 
   const load = useCallback(async () => {
     setLoading(true)
+
+    if (demoData) {
+      const withBalance: BucketWithBalance[] = demoData.buckets.map((b) => {
+        const accumulated = b.monthly_contribution_usd * currentMonth
+        const txs = demoData.transactions.filter((t) => t.bucket_id === b.id)
+        const spent = txs.filter((t) => t.amount_usd < 0).reduce((s, t) => s + Math.abs(t.amount_usd), 0)
+        const extra = txs.filter((t) => t.amount_usd > 0).reduce((s, t) => s + t.amount_usd, 0)
+        return { ...b, accumulated, spent, balance: accumulated + extra - spent }
+      })
+      setBuckets(withBalance)
+      setTransactions(demoData.transactions)
+      setLoading(false)
+      return
+    }
+
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
@@ -88,7 +103,7 @@ export function TabBuckets() {
     setLoading(false)
   }, [currentYear, currentMonth, supabase])
 
-  useEffect(() => { load() }, [load])
+  useEffect(() => { load() }, [load, demoData])
 
   async function addTransaction() {
     if (!addingTo || !txAmount) return
@@ -179,9 +194,11 @@ export function TabBuckets() {
                   </div>
                   <p className="text-xs text-slate-400">{spentPct.toFixed(0)}% del acumulado · ${b.monthly_contribution_usd}/mes</p>
                 </div>
-                <Button variant="outline" size="sm" className="w-full" onClick={() => { setAddingTo(b.id); setTxAmount(""); setTxDesc("") }}>
-                  + Añadir gasto
-                </Button>
+                {!demoData && (
+                  <Button variant="outline" size="sm" className="w-full" onClick={() => { setAddingTo(b.id); setTxAmount(""); setTxDesc("") }}>
+                    + Añadir gasto
+                  </Button>
+                )}
                 {transactions.filter((t) => t.bucket_id === b.id).slice(-3).reverse().map((t) => (
                   <div key={t.id} className="flex justify-between text-xs text-slate-500">
                     <span>{t.description ?? "Sin descripción"}</span>
