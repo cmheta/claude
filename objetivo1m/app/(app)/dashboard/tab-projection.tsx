@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { ContextualChat } from "@/components/contextual-chat"
 import { calcNetWorth, projectToGoal } from "@/lib/net-worth"
 import { formatGBP } from "@/lib/utils"
+import { TrendingUp, ArrowRight } from "lucide-react"
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer,
 } from "recharts"
@@ -19,7 +20,6 @@ function buildProjectionData(start: number, monthly: number, rates: number[], la
   const values = rates.map(() => start)
   const now = new Date()
   const series: Record<string, number>[] = []
-
   for (let m = 0; m <= months; m++) {
     if (m % 12 === 0) {
       const d = new Date(now.getFullYear(), now.getMonth() + m, 1)
@@ -46,14 +46,19 @@ export function TabProjection({
   const rates = [0.07, 0.10, 0.12]
   const labels = ["Conservador (7%)", "Base (10%)", "Optimista (12%)"]
   const chartData = buildProjectionData(nw.total_gbp, monthly, rates, labels, 240)
-
   const scenarios = rates.map((r, i) => ({ label: labels[i], ...projectToGoal(nw.total_gbp, monthly, r) }))
 
   const monthsLeft = 12 - new Date().getMonth()
   const eoyProjection = nw.total_gbp + monthly * monthsLeft
   const annualGoalGbp = ANNUAL_GOAL_USD * fx.usdToGbp
-  const onTrack = eoyProjection >= nw.total_gbp + annualGoalGbp * (monthsLeft / 12)
+  const annualGoalProrated = annualGoalGbp * (monthsLeft / 12)
+  const onTrack = eoyProjection >= nw.total_gbp + annualGoalProrated
   const currentYear = new Date().getFullYear()
+
+  // Gap analysis
+  const gap = onTrack ? 0 : (nw.total_gbp + annualGoalProrated) - eoyProjection
+  const extraMonthlyNeeded = monthsLeft > 0 ? Math.ceil(gap / monthsLeft) : 0
+  const bonusNeeded = gap
 
   const chatContext = {
     netWorth: Math.round(nw.total_gbp),
@@ -62,6 +67,8 @@ export function TabProjection({
     eoyProjection: Math.round(eoyProjection),
     annualGoalGbp: Math.round(annualGoalGbp),
     onTrack,
+    gap: Math.round(gap),
+    extraMonthlyNeeded,
   }
 
   return (
@@ -92,6 +99,45 @@ export function TabProjection({
           </CardContent>
         </Card>
       </div>
+
+      {/* Gap closing suggestions — only shown when behind */}
+      {!onTrack && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-semibold text-amber-800 flex items-center gap-2">
+              <TrendingUp className="w-4 h-4" /> Cómo cerrar el gap de {formatGBP(gap)}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-white rounded-lg p-3 border border-amber-100">
+                <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                  <ArrowRight className="w-3 h-3" /> Opción 1 — contribuir más
+                </p>
+                <p className="text-lg font-bold text-slate-900">+{formatGBP(extraMonthlyNeeded)}/mes</p>
+                <p className="text-xs text-slate-500">extra los próximos {monthsLeft} meses</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-amber-100">
+                <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                  <ArrowRight className="w-3 h-3" /> Opción 2 — lump sum
+                </p>
+                <p className="text-lg font-bold text-slate-900">{formatGBP(bonusNeeded)}</p>
+                <p className="text-xs text-slate-500">inversión única ahora (bonus, LTIP, etc.)</p>
+              </div>
+              <div className="bg-white rounded-lg p-3 border border-amber-100">
+                <p className="text-xs text-slate-500 mb-1 flex items-center gap-1">
+                  <ArrowRight className="w-3 h-3" /> Opción 3 — mover el goal
+                </p>
+                <p className="text-lg font-bold text-slate-900">{formatGBP(eoyProjection - nw.total_gbp)}</p>
+                <p className="text-xs text-slate-500">es lo que vas a ahorrar este año realísticamente</p>
+              </div>
+            </div>
+            <p className="text-xs text-amber-700">
+              Tip: el slider de abajo te muestra exactamente cómo impacta subir tu contribución mensual.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Scenarios */}
       <Card>
@@ -135,11 +181,7 @@ export function TabProjection({
           <div className="space-y-1.5">
             <Label className="text-xs">Contribución mensual: {formatGBP(monthly)}</Label>
             <input
-              type="range"
-              min={100}
-              max={3000}
-              step={50}
-              value={monthly}
+              type="range" min={100} max={3000} step={50} value={monthly}
               onChange={(e) => setMonthly(Number(e.target.value))}
               className="w-full accent-slate-900"
             />

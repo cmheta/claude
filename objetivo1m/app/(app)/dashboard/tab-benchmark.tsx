@@ -6,8 +6,31 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { ContextualChat } from "@/components/contextual-chat"
 import { formatGBP } from "@/lib/utils"
-import { Zap, RefreshCw } from "lucide-react"
+import { Zap, RefreshCw, Quote, MessageSquare } from "lucide-react"
 import type { NetWorthBreakdown, Snapshot } from "@/types/database"
+
+// Curated quotes from great long-term investors, rotating contextually
+const INVESTOR_QUOTES = [
+  { text: "The stock market is a device for transferring money from the impatient to the patient.", author: "Warren Buffett", relevance: "Mantener VUSA y MA a largo plazo supera al market timing." },
+  { text: "It's far better to buy a wonderful company at a fair price than a fair company at a wonderful price.", author: "Warren Buffett", relevance: "MA y MELI son negocios con moats reales — el precio de entrada importa menos que la calidad." },
+  { text: "The big money is not in the buying and the selling, but in the waiting.", author: "Charlie Munger", relevance: "Tu horizonte de 10–20 años es una ventaja estructural sobre fondos institucionales." },
+  { text: "In the short run, the market is a voting machine. In the long run, it is a weighing machine.", author: "Benjamin Graham", relevance: "La volatilidad de MELI no refleja el valor del negocio — paciencia." },
+  { text: "Don't look for the needle in the haystack. Just buy the haystack.", author: "John Bogle", relevance: "Tu VUSA ISA es la implementación perfecta de esta filosofía — simple y efectiva." },
+  { text: "The four most dangerous words in investing are: 'This time it's different.'", author: "John Templeton", relevance: "Cuando el mercado cae, el impulso es salir. La historia muestra que es el momento de comprar." },
+  { text: "Know what you own, and know why you own it.", author: "Peter Lynch", relevance: "¿Podés explicar en una frase por qué tenés MA, MELI y VUSA? Si sí, estás en el camino correcto." },
+  { text: "Time in the market beats timing the market.", author: "Ken Fisher", relevance: "Cada mes que contribuís al VUSA ISA compra fracciones del S&P500 a precio de hoy." },
+]
+
+const FORUM_PROMPT = `Based on this investor's portfolio (MA, MELI, VUSA S&P500, USD bonds), summarize what the long-term investment community (r/investing, r/Bogleheads, r/UKPersonalFinance, Seeking Alpha, etc.) is currently discussing that's relevant to her.
+
+Generate 3-4 "forum pulse" items. For each: what's the community talking about, and how it applies specifically to her portfolio.
+
+Format each as [PULSE] on its own line, then a topic line, then 1-2 sentences applying it to her.
+
+Example:
+[PULSE]
+r/Bogleheads: "Is now a good time to move from bonds to equities?"
+Hot debate given rate cuts. With £31k in USD bonds, you're part of this conversation — community leans toward gradual reallocation into index funds as rates fall.`
 
 // ONS Wealth & Assets Survey 2020 + FCA Financial Lives 2022
 // Demographic: professionals, London, 30–38, £80–120k income
@@ -57,6 +80,10 @@ export function TabBenchmark({
   const [challenges, setChallenges] = useState<ChallengeItem[]>([])
   const [loading, setLoading] = useState(false)
   const [ran, setRan] = useState(false)
+  const [pulse, setPulse] = useState<ChallengeItem[]>([])
+  const [pulseLoading, setPulseLoading] = useState(false)
+  const [pulseRan, setPulseRan] = useState(false)
+  const [quoteIdx] = useState(() => Math.floor(Math.random() * INVESTOR_QUOTES.length))
 
   const savingsRate = snapshot.salary_gbp > 0
     ? Math.round((snapshot.left_to_save_gbp / snapshot.salary_gbp) * 100)
@@ -103,6 +130,41 @@ export function TabBenchmark({
       medianSavingsRate: `${PEER.median_savings_rate_pct}%`,
       medianStocks: `${PEER.median_stocks_pct}%`,
     },
+  }
+
+  async function runPulse() {
+    setPulseLoading(true)
+    setPulse([])
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tab: "benchmark", message: FORUM_PROMPT, context: chatContext, history: [] }),
+      })
+      if (!res.ok || !res.body) throw new Error()
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let full = ""
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        full += decoder.decode(value, { stream: true })
+      }
+      setPulse(parsePulse(full))
+      setPulseRan(true)
+    } catch {
+      setPulse([{ title: "Error", body: "No se pudo conectar. Intentá de nuevo." }])
+    } finally {
+      setPulseLoading(false)
+    }
+  }
+
+  function parsePulse(text: string): ChallengeItem[] {
+    const chunks = text.split(/\[PULSE\]/).filter((s) => s.trim())
+    return chunks.map((chunk) => {
+      const lines = chunk.trim().split("\n").filter(Boolean)
+      return { title: lines[0]?.trim() ?? "Forum", body: lines.slice(1).join(" ").trim() }
+    })
   }
 
   function parseChallenges(text: string): ChallengeItem[] {
@@ -224,6 +286,63 @@ export function TabBenchmark({
           ))}
         </CardContent>
       </Card>
+
+      {/* Investor quote */}
+      {(() => {
+        const q = INVESTOR_QUOTES[quoteIdx % INVESTOR_QUOTES.length]
+        return (
+          <Card className="border-slate-200 bg-slate-50">
+            <CardContent className="py-4 flex items-start gap-3">
+              <Quote className="w-5 h-5 text-slate-300 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm text-slate-700 italic leading-relaxed">"{q.text}"</p>
+                <p className="text-xs font-semibold text-slate-500 mt-1">— {q.author}</p>
+                <p className="text-xs text-emerald-700 mt-2 bg-emerald-50 rounded px-2 py-1 inline-block">{q.relevance}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })()}
+
+      {/* Forum pulse */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-900 flex items-center gap-2">
+              <MessageSquare className="w-4 h-4 text-blue-500" /> Qué hablan los foros
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">r/investing · r/Bogleheads · r/UKPersonalFinance — aplicado a tu cartera</p>
+          </div>
+          <Button onClick={runPulse} disabled={pulseLoading} size="sm" variant={pulseRan ? "outline" : "default"} className="flex items-center gap-2">
+            <RefreshCw className={`w-3.5 h-3.5 ${pulseLoading ? "animate-spin" : ""}`} />
+            {pulseLoading ? "Cargando..." : pulseRan ? "Actualizar" : "Ver foros"}
+          </Button>
+        </div>
+        {!pulseLoading && !pulse.length && (
+          <div className="flex flex-col items-center justify-center h-28 border-2 border-dashed border-slate-200 rounded-xl text-slate-400 gap-2">
+            <MessageSquare className="w-6 h-6" />
+            <p className="text-sm">Hacé click en "Ver foros" para ver qué debate la comunidad</p>
+          </div>
+        )}
+        {pulseLoading && !pulse.length && (
+          <div className="space-y-2">{[1,2,3].map((i) => <div key={i} className="h-16 bg-slate-100 rounded-xl animate-pulse" />)}</div>
+        )}
+        {pulse.length > 0 && (
+          <div className="space-y-3">
+            {pulse.map((p, i) => (
+              <Card key={i} className="border-blue-100 bg-blue-50">
+                <CardContent className="py-3 flex items-start gap-3">
+                  <MessageSquare className="w-3.5 h-3.5 text-blue-400 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-xs font-semibold text-slate-700">{p.title}</p>
+                    <p className="text-xs text-slate-600 mt-1 leading-relaxed">{p.body}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* AI Challenge section */}
       <div>
